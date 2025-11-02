@@ -1,3 +1,4 @@
+mod common;
 mod days;
 
 use clap::Parser;
