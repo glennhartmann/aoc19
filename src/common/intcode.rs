@@ -1,6 +1,6 @@
 pub struct IntcodeComputer<FIF, POF>
 where
-    FIF: Fn() -> i32,
+    FIF: FnMut() -> i32,
     POF: FnMut(i32),
 {
     memory: Vec<i32>,
@@ -9,6 +9,8 @@ where
     provide_output: POF,
     opcode: Opcode,
     pmodes: Vec<ParameterMode>,
+    state: State,
+    blocking_io: bool,
 }
 
 impl IntcodeComputer<fn() -> i32, fn(i32)> {
@@ -20,13 +22,15 @@ impl IntcodeComputer<fn() -> i32, fn(i32)> {
             provide_output: |_| panic!("tried to write to uninitialized output"),
             opcode: Opcode::Uninitialized,
             pmodes: Vec::new(),
+            state: State::WaitingToRun,
+            blocking_io: true,
         }
     }
 }
 
 impl<FIF, POF> IntcodeComputer<FIF, POF>
 where
-    FIF: Fn() -> i32,
+    FIF: FnMut() -> i32,
     POF: FnMut(i32),
 {
     pub fn new_with_io(memory: Vec<i32>, fetch_input: FIF, provide_output: POF) -> Self {
@@ -37,6 +41,8 @@ where
             provide_output,
             opcode: Opcode::Uninitialized,
             pmodes: Vec::new(),
+            state: State::WaitingToRun,
+            blocking_io: false,
         }
     }
 
@@ -76,14 +82,25 @@ where
                     self.instr += 4;
                 }
                 Opcode::Input => {
+                    if self.blocking_io {
+                        self.state = State::BlockedOnInput;
+                        return;
+                    }
+
                     let dst = self.memory[self.instr + 1];
-                    self.set_mem(dst, (self.fetch_input)());
+                    let input = (self.fetch_input)();
+                    self.set_mem(dst, input);
                     if verbose {
                         println!("${} = $input = {}", dst, self.get_mem(dst));
                     }
                     self.instr += 2;
                 }
                 Opcode::Output => {
+                    if self.blocking_io {
+                        self.state = State::BlockedOnOutput;
+                        return;
+                    }
+
                     let p = self.get_param(1);
                     if verbose {
                         println!("$output = {}", p);
@@ -151,10 +168,37 @@ where
                     }
                     self.instr += 4;
                 }
-                Opcode::Terminate => return,
+                Opcode::Terminate => {
+                    self.state = State::Terminated;
+                    return;
+                }
                 Opcode::Uninitialized => panic!("opcode uninitialized (never ran self.read_op()?)"),
             }
         }
+    }
+
+    pub fn get_state(&self) -> State {
+        self.state
+    }
+
+    pub fn provide_input(&mut self, i: i32, verbose: bool) {
+        let dst = self.memory[self.instr + 1];
+        self.set_mem(dst, i);
+        if verbose {
+            println!("${} = $input = {}", dst, self.get_mem(dst));
+        }
+        self.instr += 2;
+        self.state = State::WaitingToRun;
+    }
+
+    pub fn get_output(&mut self, verbose: bool) -> i32 {
+        let p = self.get_param(1);
+        if verbose {
+            println!("$output = {}", p);
+        }
+        self.instr += 2;
+        self.state = State::WaitingToRun;
+        p
     }
 
     fn get_mem(&self, src: i32) -> i32 {
@@ -241,6 +285,14 @@ impl TryFrom<i32> for ParameterMode {
             _ => Err(format!("Invalid parameter mode {}", value)),
         }
     }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum State {
+    WaitingToRun,
+    BlockedOnInput,
+    BlockedOnOutput,
+    Terminated,
 }
 
 fn unsafe_i32_to_usize(i: i32) -> usize {
