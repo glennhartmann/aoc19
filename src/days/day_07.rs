@@ -1,26 +1,8 @@
 use crate::common::intcode::{IntcodeComputer, State};
 
-use std::{
-    cmp,
-    cmp::Ord,
-    io::{BufWriter, Write},
-};
+use std::io::{BufWriter, Write};
 
-use aoclib_rs::{prep_io, printwriteln, split_and_parse};
-
-struct NoneMax<T>(Option<T>);
-
-impl<T> NoneMax<T>
-where
-    T: Ord + Copy,
-{
-    fn max(&self, other: T) -> Self {
-        Self(Some(match self.0 {
-            None => other,
-            Some(max) => cmp::max(other, max),
-        }))
-    }
-}
+use aoclib_rs::{option_min_max::OptionMinMax, prep_io, printwriteln, split_and_parse};
 
 pub fn run() {
     let mut contents = String::new();
@@ -50,7 +32,7 @@ fn get_max(
         return t;
     }
 
-    let mut max = NoneMax(None);
+    let mut max = OptionMinMax(None);
     for i in 0..rest.len() {
         perm.push(rest.remove(i));
 
