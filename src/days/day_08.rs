@@ -19,8 +19,8 @@ struct Layer {
 impl Image {
     fn render(&self) -> Vec<Vec<char>> {
         let mut r = vec![vec!['3'; WIDTH]; HEIGHT];
-        for (row_index, row) in r.iter_mut().enumerate().take(HEIGHT) {
-            for (col_index, p) in row.iter_mut().enumerate().take(WIDTH) {
+        for (row_index, row) in r.iter_mut().enumerate() {
+            for (col_index, p) in row.iter_mut().enumerate() {
                 for layer in &self.layers {
                     let colour = Colour::try_from(layer.pixels[row_index][col_index]).unwrap();
                     if colour != Colour::Transparent {

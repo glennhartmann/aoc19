@@ -25,13 +25,13 @@ where
 pub fn run() {
     let mut contents = String::new();
     let (mut writer, contents) = prep_io(&mut contents, 7).unwrap();
-    let memory: Vec<i32> = split_and_parse(contents[0], ",").unwrap();
+    let memory: Vec<i64> = split_and_parse(contents[0], ",").unwrap();
 
     part1(&mut writer, memory.clone());
     part2(&mut writer, memory);
 }
 
-fn part1<W: Write>(writer: &mut BufWriter<W>, memory: Vec<i32>) {
+fn part1<W: Write>(writer: &mut BufWriter<W>, memory: Vec<i64>) {
     let mut initial = Vec::new();
     let mut rest = vec![0, 1, 2, 3, 4];
     let max = get_max(memory.clone(), &mut initial, &mut rest, try_phase_part1);
@@ -39,11 +39,11 @@ fn part1<W: Write>(writer: &mut BufWriter<W>, memory: Vec<i32>) {
 }
 
 fn get_max(
-    memory: Vec<i32>,
-    perm: &mut Vec<i32>,
-    rest: &mut Vec<i32>,
-    try_phase: fn(Vec<i32>, &Vec<i32>) -> i32,
-) -> i32 {
+    memory: Vec<i64>,
+    perm: &mut Vec<i64>,
+    rest: &mut Vec<i64>,
+    try_phase: fn(Vec<i64>, &Vec<i64>) -> i64,
+) -> i64 {
     if rest.is_empty() {
         let t = try_phase(memory.clone(), perm);
         println!("{:?}: {}", perm, t);
@@ -62,7 +62,7 @@ fn get_max(
     max.0.expect("no loop iterations - impossible")
 }
 
-fn try_phase_part1(memory: Vec<i32>, phase: &Vec<i32>) -> i32 {
+fn try_phase_part1(memory: Vec<i64>, phase: &Vec<i64>) -> i64 {
     let mut signal = 0;
     for p in phase {
         let input = [*p, signal];
@@ -77,17 +77,17 @@ fn try_phase_part1(memory: Vec<i32>, phase: &Vec<i32>) -> i32 {
     signal
 }
 
-fn part2<W: Write>(writer: &mut BufWriter<W>, memory: Vec<i32>) {
+fn part2<W: Write>(writer: &mut BufWriter<W>, memory: Vec<i64>) {
     let mut initial = Vec::new();
     let mut rest = vec![5, 6, 7, 8, 9];
     let max = get_max(memory.clone(), &mut initial, &mut rest, try_phase_part2);
     printwriteln!(writer, "{}", max).unwrap();
 }
 
-fn try_phase_part2(memory: Vec<i32>, phase: &Vec<i32>) -> i32 {
+fn try_phase_part2(memory: Vec<i64>, phase: &Vec<i64>) -> i64 {
     const VERBOSE: bool = false;
 
-    let mut computers = Vec::<IntcodeComputer<fn() -> i32, fn(i32)>>::new();
+    let mut computers = Vec::<IntcodeComputer<fn() -> i64, fn(i64)>>::new();
     for _ in phase {
         computers.push(IntcodeComputer::new(memory.clone()));
     }
