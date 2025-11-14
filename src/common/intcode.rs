@@ -9,7 +9,7 @@ where
     instr: usize,
     fetch_input: FIF,
     provide_output: POF,
-    opcode: Opcode,
+    opcode: Option<Opcode>,
     pmodes: Vec<ParameterMode>,
     state: State,
     blocking_io: bool,
@@ -25,7 +25,7 @@ impl IntcodeComputerDefault {
             instr: 0,
             fetch_input: || panic!("tried to fetch from uninitialized input"),
             provide_output: |_| panic!("tried to write to uninitialized output"),
-            opcode: Opcode::Uninitialized,
+            opcode: None,
             pmodes: Vec::new(),
             state: State::WaitingToRun,
             blocking_io: true,
@@ -45,7 +45,7 @@ where
             instr: 0,
             fetch_input,
             provide_output,
-            opcode: Opcode::Uninitialized,
+            opcode: None,
             pmodes: Vec::new(),
             state: State::WaitingToRun,
             blocking_io: false,
@@ -65,11 +65,11 @@ where
     pub fn run(&mut self, verbose: bool) {
         loop {
             self.read_op();
-            match self.opcode {
+            match self.opcode.expect("Some opcode expected") {
                 Opcode::Add | Opcode::Multiply => {
                     let (p1, p2) = (self.get_src_param(1), self.get_src_param(2));
                     let dst = self.get_dst_param(3);
-                    match self.opcode {
+                    match self.opcode.expect("impossible for this to fail") {
                         Opcode::Add => {
                             let result = p1 + p2;
                             if verbose {
@@ -191,7 +191,7 @@ where
                     self.state = State::Terminated;
                     return;
                 }
-                Opcode::Uninitialized => panic!("opcode uninitialized (never ran self.read_op()?)"),
+                Opcode::Data(_) => panic!("tried to execute data"),
             }
         }
     }
@@ -239,13 +239,25 @@ where
     }
 
     fn read_op(&mut self) {
-        let mut op = self.memory[self.instr];
-        self.opcode = Opcode::try_from(op % 100).unwrap();
-        op /= 100;
+        let original_op = self.memory[self.instr];
+        self.opcode = Some(Opcode::from(original_op % 100));
+
+        if let Some(Opcode::Data(_)) = self.opcode {
+            self.opcode = Some(Opcode::Data(original_op));
+            return;
+        }
+
+        let mut op = original_op / 100;
 
         self.pmodes = Vec::new();
         while op > 0 {
-            self.pmodes.push(ParameterMode::try_from(op % 10).unwrap());
+            match ParameterMode::try_from(op % 10) {
+                Ok(pmode) => self.pmodes.push(pmode),
+                Err(_) => {
+                    self.opcode = Some(Opcode::Data(original_op));
+                    return;
+                }
+            }
             op /= 10;
         }
     }
@@ -278,6 +290,145 @@ where
         let immediate = self.memory[self.instr + iusize];
         (pmode, immediate)
     }
+
+    #[allow(dead_code)]
+    pub fn disassemble(&mut self, verbose: bool) {
+        loop {
+            if self.instr >= self.memory.len() {
+                break;
+            }
+
+            self.read_op();
+            match self.opcode.expect("Some opcode expected") {
+                Opcode::Add => {
+                    let (p1, p2) = (self.param_as_string(1), self.param_as_string(2));
+                    let dst = self.param_as_string(3);
+                    print!("{} = {} + {}", dst, p1, p2);
+                    if verbose {
+                        self.print_3_args();
+                    }
+                    self.instr += 4;
+                }
+                Opcode::Multiply => {
+                    let (p1, p2) = (self.param_as_string(1), self.param_as_string(2));
+                    let dst = self.param_as_string(3);
+                    print!("{} = {} * {}", dst, p1, p2);
+                    if verbose {
+                        self.print_3_args();
+                    }
+                    self.instr += 4;
+                }
+                Opcode::Input => {
+                    let dst = self.param_as_string(1);
+                    print!("{} = $input()", dst);
+                    if verbose {
+                        self.print_1_arg();
+                    }
+                    self.instr += 2;
+                }
+                Opcode::Output => {
+                    let p = self.param_as_string(1);
+                    print!("$output({})", p);
+                    if verbose {
+                        self.print_1_arg();
+                    }
+                    self.instr += 2;
+                }
+                Opcode::JumpIfTrue => {
+                    let (p, dst) = (self.param_as_string(1), self.param_as_string(2));
+                    print!("if {} != 0 {{ $jump({}) }}", p, dst);
+                    if verbose {
+                        self.print_2_args();
+                    }
+                    self.instr += 3;
+                }
+                Opcode::JumpIfFalse => {
+                    let (p, dst) = (self.param_as_string(1), self.param_as_string(2));
+                    print!("if {} == 0 {{ $jump({}) }}", p, dst);
+                    if verbose {
+                        self.print_2_args();
+                    }
+                    self.instr += 3;
+                }
+                Opcode::LessThan => {
+                    let (p1, p2) = (self.param_as_string(1), self.param_as_string(2));
+                    let dst = self.param_as_string(3);
+                    print!("{} = {} < {} ? 1 : 0", dst, p1, p2);
+                    if verbose {
+                        self.print_3_args();
+                    }
+                    self.instr += 4;
+                }
+                Opcode::Equals => {
+                    let (p1, p2) = (self.param_as_string(1), self.param_as_string(2));
+                    let dst = self.param_as_string(3);
+                    print!("{} = {} == {} ? 1 : 0", dst, p1, p2);
+                    if verbose {
+                        self.print_3_args();
+                    }
+                    self.instr += 4;
+                }
+                Opcode::RelativeBaseOffset => {
+                    let param = self.param_as_string(1);
+                    print!("$relative_base += {}", param,);
+                    if verbose {
+                        self.print_1_arg();
+                    }
+                    self.instr += 2;
+                }
+                Opcode::Terminate => {
+                    print!("TERM");
+                    if verbose {
+                        self.print_0_args();
+                    }
+                    self.instr += 1;
+                }
+                Opcode::Data(d) => {
+                    print!("$DATA({})", d);
+                    if verbose {
+                        self.print_0_args();
+                    }
+                    self.instr += 1;
+                }
+            }
+            println!();
+        }
+    }
+
+    fn param_as_string(&self, i: i64) -> String {
+        param_to_string(self.get_pmode_and_immediate(i))
+    }
+
+    fn print_3_args(&self) {
+        print!(
+            "  # {}, {}, {}, {}",
+            self.memory[self.instr],
+            self.memory[self.instr + 1],
+            self.memory[self.instr + 2],
+            self.memory[self.instr + 3]
+        )
+    }
+
+    fn print_2_args(&self) {
+        print!(
+            "  # {}, {}, {}",
+            self.memory[self.instr],
+            self.memory[self.instr + 1],
+            self.memory[self.instr + 2]
+        )
+    }
+
+    fn print_1_arg(&self) {
+        print!(
+            "  # {}, {}",
+            self.memory[self.instr],
+            self.memory[self.instr + 1]
+        )
+    }
+
+    fn print_0_args(&self) {
+        print!("  # {}", self.memory[self.instr])
+    }
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -292,25 +443,23 @@ enum Opcode {
     Equals,
     RelativeBaseOffset,
     Terminate,
-    Uninitialized,
+    Data(i64),
 }
 
-impl TryFrom<i64> for Opcode {
-    type Error = String;
-
-    fn try_from(value: i64) -> Result<Self, Self::Error> {
+impl From<i64> for Opcode {
+    fn from(value: i64) -> Opcode {
         match value {
-            1 => Ok(Opcode::Add),
-            2 => Ok(Opcode::Multiply),
-            3 => Ok(Opcode::Input),
-            4 => Ok(Opcode::Output),
-            5 => Ok(Opcode::JumpIfTrue),
-            6 => Ok(Opcode::JumpIfFalse),
-            7 => Ok(Opcode::LessThan),
-            8 => Ok(Opcode::Equals),
-            9 => Ok(Opcode::RelativeBaseOffset),
-            99 => Ok(Opcode::Terminate),
-            _ => Err(format!("Invalid opcode {}", value)),
+            1 => Opcode::Add,
+            2 => Opcode::Multiply,
+            3 => Opcode::Input,
+            4 => Opcode::Output,
+            5 => Opcode::JumpIfTrue,
+            6 => Opcode::JumpIfFalse,
+            7 => Opcode::LessThan,
+            8 => Opcode::Equals,
+            9 => Opcode::RelativeBaseOffset,
+            99 => Opcode::Terminate,
+            d => Opcode::Data(d),
         }
     }
 }
@@ -345,4 +494,13 @@ pub enum State {
 
 fn unsafe_i64_to_usize(i: i64) -> usize {
     usize::try_from(i).unwrap()
+}
+
+fn param_to_string(p: (ParameterMode, i64)) -> String {
+    let pm = match p.0 {
+        ParameterMode::Position => "$",
+        ParameterMode::Immediate => "",
+        ParameterMode::Relative => "#",
+    };
+    pm.to_string() + &format!("{}", p.1)
 }
