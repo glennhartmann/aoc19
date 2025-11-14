@@ -16,7 +16,9 @@ where
     relative_base: i64,
 }
 
-impl IntcodeComputer<fn() -> i64, fn(i64)> {
+pub type IntcodeComputerDefault = IntcodeComputer<fn() -> i64, fn(i64)>;
+
+impl IntcodeComputerDefault {
     pub fn new(memory: Vec<i64>) -> Self {
         IntcodeComputer {
             memory,

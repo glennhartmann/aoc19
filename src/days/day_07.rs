@@ -1,4 +1,4 @@
-use crate::common::intcode::{IntcodeComputer, State};
+use crate::common::intcode::{IntcodeComputer, IntcodeComputerDefault, State};
 
 use std::io::{BufWriter, Write};
 
@@ -69,7 +69,7 @@ fn part2<W: Write>(writer: &mut BufWriter<W>, memory: Vec<i64>) {
 fn try_phase_part2(memory: Vec<i64>, phase: &Vec<i64>) -> i64 {
     const VERBOSE: bool = false;
 
-    let mut computers = Vec::<IntcodeComputer<fn() -> i64, fn(i64)>>::new();
+    let mut computers = Vec::<IntcodeComputerDefault>::new();
     for _ in phase {
         computers.push(IntcodeComputer::new(memory.clone()));
     }
