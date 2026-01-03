@@ -32,7 +32,7 @@ fn get_max(
         return t;
     }
 
-    let mut max = OptionMinMax(None);
+    let mut max = OptionMinMax::NONE;
     for i in 0..rest.len() {
         perm.push(rest.remove(i));
 
@@ -41,7 +41,7 @@ fn get_max(
         rest.insert(i, perm.pop().expect("push/pop asymmetry"));
     }
 
-    max.0.expect("no loop iterations - impossible")
+    max.unwrap()
 }
 
 fn try_phase_part1(memory: Vec<i64>, phase: &Vec<i64>) -> i64 {

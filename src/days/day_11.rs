@@ -96,10 +96,10 @@ fn get_paint_data(part1: bool, memory: Vec<i64>, verbose: bool) -> (i64, Panels,
     c.run(verbose);
 
     let (mut min_x, mut min_y, mut max_x, mut max_y) = (
-        OptionMinMax(None),
-        OptionMinMax(None),
-        OptionMinMax(None),
-        OptionMinMax(None),
+        OptionMinMax::NONE,
+        OptionMinMax::NONE,
+        OptionMinMax::NONE,
+        OptionMinMax::NONE,
     );
     let mut painted_count = 0;
     loop {
@@ -161,8 +161,8 @@ fn get_paint_data(part1: bool, memory: Vec<i64>, verbose: bool) -> (i64, Panels,
     (
         painted_count,
         panels,
-        (min_x.0.expect(""), min_y.0.expect("")),
-        (max_x.0.expect(""), max_y.0.expect("")),
+        (min_x.unwrap(), min_y.unwrap()),
+        (max_x.unwrap(), max_y.unwrap()),
     )
 }
 

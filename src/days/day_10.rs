@@ -1,141 +1,69 @@
 use std::{
     collections::HashMap,
-    f32::consts::{FRAC_PI_2, PI},
     io::{BufWriter, Write},
 };
 
-use aoclib_rs::{prep_io, printwriteln, split_by_char};
+use aoclib_rs::{
+    point::{Point2d, Slope},
+    prep_io, printwriteln, split_by_char,
+};
 
-#[derive(Copy, Clone)]
+type P2 = Point2d<i64>;
+type Slope64 = Slope<i64>;
+
+#[derive(Clone)]
 struct Blocker {
-    x: i32,
-    y: i32,
-    slope: Slope,
-    min_dist: f32,
-    angle: f32,
+    point: P2,
+    slope: Slope64,
+    min_dist: f64,
+    angle: f64,
 }
 
 impl Blocker {
-    fn new(x: i32, y: i32, slope: Slope, min_dist: f32) -> Self {
+    fn new(x: i64, y: i64, slope: Slope64, min_dist: f64) -> Self {
         Self {
-            x,
-            y,
+            point: P2::new(x, y),
             slope,
             min_dist,
-            angle: match slope {
-                Slope {
-                    horizontal: 0,
-                    vertical: 0,
-                } => panic!("0 slope"),
-
-                // up
-                Slope {
-                    horizontal: 0,
-                    vertical: i32::MIN..0,
-                } => 0.0,
-
-                // right
-                Slope {
-                    horizontal: 0..=i32::MAX,
-                    vertical: 0,
-                } => FRAC_PI_2,
-
-                // down
-                Slope {
-                    horizontal: 0,
-                    vertical: 0..=i32::MAX,
-                } => PI,
-
-                // left
-                Slope {
-                    horizontal: i32::MIN..0,
-                    vertical: 0,
-                } => PI + FRAC_PI_2,
-
-                // top-right
-                Slope {
-                    horizontal: 0..=i32::MAX,
-                    vertical: i32::MIN..0,
-                } => (slope.horizontal as f32 / -slope.vertical as f32).atan(),
-
-                // bottom-right
-                Slope {
-                    horizontal: 0..=i32::MAX,
-                    vertical: 0..=i32::MAX,
-                } => (slope.vertical as f32 / slope.horizontal as f32).atan() + FRAC_PI_2,
-
-                // bottom-left
-                Slope {
-                    horizontal: i32::MIN..0,
-                    vertical: 0..=i32::MAX,
-                } => (-slope.horizontal as f32 / slope.vertical as f32).atan() + PI,
-
-                // top-left
-                Slope {
-                    horizontal: i32::MIN..0,
-                    vertical: i32::MIN..0,
-                } => (-slope.vertical as f32 / -slope.horizontal as f32).atan() + PI + FRAC_PI_2,
-            },
+            angle: slope.get_angle(),
         }
     }
-}
 
-#[derive(PartialEq, Eq, Hash, Copy, Clone)]
-struct Slope {
-    horizontal: i32,
-    vertical: i32,
-}
-
-impl Slope {
-    fn from(pov: &Asteroid, asteroid: &Asteroid) -> Self {
-        let mut s = Self {
-            horizontal: asteroid.x - pov.x,
-            vertical: asteroid.y - pov.y,
-        };
-        s.simplify();
-        s
+    fn x(&self) -> i64 {
+        self.point.x()
     }
 
-    fn simplify(&mut self) {
-        let gcd = Self::euclidean_algorithm(self.horizontal.abs(), self.vertical.abs());
-        self.horizontal /= gcd;
-        self.vertical /= gcd;
-    }
-
-    fn euclidean_algorithm(a: i32, b: i32) -> i32 {
-        if a < 0 || b < 0 {
-            panic!("should only be used on positive numbers");
-        }
-
-        if b == 0 {
-            return a;
-        }
-
-        Self::euclidean_algorithm(b, a % b)
+    fn y(&self) -> i64 {
+        self.point.y()
     }
 }
 
-#[derive(PartialEq, Copy, Clone)]
-struct Asteroid {
-    x: i32,
-    y: i32,
-}
+#[derive(PartialEq, Clone)]
+struct Asteroid(P2);
 
 impl Asteroid {
-    fn new(x: i32, y: i32) -> Self {
-        Self { x, y }
+    fn new(x: i64, y: i64) -> Self {
+        Self(P2::new(x, y))
     }
 
-    fn dist(&self, other: &Asteroid) -> f32 {
-        distance((self.x, self.y), (other.x, other.y))
+    fn dist(&self, other: &Asteroid) -> f64 {
+        distance((self.0.x(), self.0.y()), (other.0.x(), other.0.y()))
     }
 
-    fn is_blocked(&self, pov: &Asteroid, blockers: &HashMap<Slope, Blocker>) -> bool {
-        let slope = Slope::from(pov, self);
+    fn is_blocked(&self, pov: &Asteroid, blockers: &HashMap<Slope64, Blocker>) -> bool {
+        let slope = Slope::from_points_2d(&pov.0, &self.0).unwrap();
         match blockers.get(&slope) {
             None => false,
             Some(blocker) => pov.dist(self) > blocker.min_dist,
         }
+    }
+
+    fn x(&self) -> i64 {
+        self.0.x()
+    }
+
+    fn y(&self) -> i64 {
+        self.0.y()
     }
 }
 
@@ -160,7 +88,7 @@ pub fn run() {
 fn part1<W: Write>(
     writer: &mut BufWriter<W>,
     asteroids: &Vec<Asteroid>,
-) -> (Asteroid, HashMap<Slope, Blocker>) {
+) -> (Asteroid, HashMap<Slope64, Blocker>) {
     let mut max_count = None;
     let mut max_pov = None;
     let mut max_blockers = None;
@@ -207,32 +135,32 @@ fn part1<W: Write>(
     }
 
     let max_pov_concrete = max_pov.expect("no max pov found");
-    println!("pov: ({}, {})", max_pov_concrete.x, max_pov_concrete.y);
+    println!("pov: ({}, {})", max_pov_concrete.x(), max_pov_concrete.y());
     printwriteln!(writer, "{}", max_count.expect("no max count found")).unwrap();
 
     (
-        *max_pov_concrete,
+        max_pov_concrete.clone(),
         max_blockers.expect("no back blockers found"),
     )
 }
 
-fn find_blockers(pov: &Asteroid, asteroids: &Vec<Asteroid>) -> HashMap<Slope, Blocker> {
-    let mut blockers: HashMap<Slope, Blocker> = HashMap::new();
+fn find_blockers(pov: &Asteroid, asteroids: &Vec<Asteroid>) -> HashMap<Slope64, Blocker> {
+    let mut blockers: HashMap<Slope64, Blocker> = HashMap::new();
     for asteroid in asteroids {
         if asteroid == pov {
             continue;
         }
 
-        let slope = Slope::from(pov, asteroid);
+        let slope = Slope::from_points_2d(&pov.0, &asteroid.0).unwrap();
         let dist = pov.dist(asteroid);
         blockers
             .entry(slope)
             .and_modify(|e| {
                 if dist < e.min_dist {
-                    *e = Blocker::new(asteroid.x, asteroid.y, slope, dist);
+                    *e = Blocker::new(asteroid.x(), asteroid.y(), slope, dist);
                 }
             })
-            .or_insert(Blocker::new(asteroid.x, asteroid.y, slope, dist));
+            .or_insert(Blocker::new(asteroid.x(), asteroid.y(), slope, dist));
     }
     blockers
 }
@@ -241,21 +169,26 @@ fn part2<W: Write>(
     writer: &mut BufWriter<W>,
     mut asteroids: Vec<Asteroid>,
     pov: &Asteroid,
-    mut blockers: HashMap<Slope, Blocker>,
+    mut blockers: HashMap<Slope64, Blocker>,
 ) {
     let mut i = 1;
     let mut two_hundredth = None;
     while asteroids.len() > 1 {
-        let mut blockers_by_angle: Vec<_> = blockers.values().collect();
+        let mut blockers_by_angle: Vec<_> = blockers.values().cloned().collect();
         blockers_by_angle.sort_by(|a, b| a.angle.partial_cmp(&b.angle).unwrap());
 
         for b in &blockers_by_angle {
             if i == 200 {
-                two_hundredth = Some(**b);
+                two_hundredth = Some(b.clone());
             }
             println!(
                 "the {}th asteroid to be vapourized is at ({}, {}) with a slope of {} / {} and an angle of {} rad",
-                i, b.x, b.y, b.slope.horizontal, b.slope.vertical, b.angle
+                i,
+                b.x(),
+                b.y(),
+                b.slope.horizontal(),
+                b.slope.vertical(),
+                b.angle
             );
             i += 1;
         }
@@ -266,12 +199,12 @@ fn part2<W: Write>(
                 if *e == pov {
                     return true;
                 }
-                match blockers.get(&Slope::from(pov, e)) {
+                match blockers.get(&Slope::from_points_2d(&pov.0, &e.0).unwrap()) {
                     None => true,
-                    Some(blocker) => e.x != blocker.x || e.y != blocker.y,
+                    Some(blocker) => e.x() != blocker.x() || e.y() != blocker.y(),
                 }
             })
-            .copied()
+            .cloned()
             .collect();
         blockers = find_blockers(pov, &asteroids);
     }
@@ -280,13 +213,13 @@ fn part2<W: Write>(
     printwriteln!(
         writer,
         "200th: ({}, {}): {}",
-        two_hundredth_concrete.x,
-        two_hundredth_concrete.y,
-        two_hundredth_concrete.x * 100 + two_hundredth_concrete.y
+        two_hundredth_concrete.x(),
+        two_hundredth_concrete.y(),
+        two_hundredth_concrete.x() * 100 + two_hundredth_concrete.y()
     )
     .unwrap();
 }
 
-fn distance(a: (i32, i32), b: (i32, i32)) -> f32 {
-    ((b.0 as f32 - a.0 as f32).powi(2) + (b.1 as f32 - a.1 as f32).powi(2)).sqrt()
+fn distance(a: (i64, i64), b: (i64, i64)) -> f64 {
+    ((b.0 as f64 - a.0 as f64).powi(2) + (b.1 as f64 - a.1 as f64).powi(2)).sqrt()
 }

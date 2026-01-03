@@ -4,7 +4,7 @@ use std::{
     str::FromStr,
 };
 
-use aoclib_rs::{prep_io, printwriteln};
+use aoclib_rs::{binary_search::BinarySearchable, prep_io, printwriteln};
 
 use {once_cell::sync::Lazy, regex::Regex};
 
@@ -155,35 +155,63 @@ fn get_req_ore(deps: &Deps, desired_fuel: u64, verbose: bool) -> u64 {
     *reqs.get(ORE).unwrap()
 }
 
+const TRILLION: u64 = 1000000000000_u64;
+
 fn part2<W: Write>(writer: &mut BufWriter<W>, deps: &Deps, ore_per_fuel: u64) {
-    const TRILLION: u64 = 1000000000000_u64;
+    let lower_bound = TRILLION / ore_per_fuel;
+    let upper_bound = lower_bound * 2;
 
-    let mut lower_bound = TRILLION / ore_per_fuel;
-    let mut upper_bound = lower_bound * 2;
-    let mut max_under_trillion = 0;
-    let mut answer = 0;
-
-    while upper_bound > lower_bound {
-        let mid_point = (lower_bound + upper_bound) / 2;
-        let req_ore = get_req_ore(deps, mid_point, false /* verbose */);
-        if req_ore > max_under_trillion && req_ore <= TRILLION {
-            max_under_trillion = req_ore;
-            answer = mid_point;
-        }
-
-        const TRILLION_PLUS_ONE: u64 = TRILLION + 1;
-        match req_ore {
-            TRILLION => break,
-            u64::MIN..TRILLION => {
-                if lower_bound == mid_point {
-                    break;
-                }
-                lower_bound = mid_point;
-            }
-            TRILLION_PLUS_ONE..=u64::MAX => upper_bound = mid_point,
-        }
-    }
+    let mut bs = BS {
+        deps,
+        max_under_trillion: 0,
+    };
+    let (answer, max_under_trillion) = bs
+        .binary_search(lower_bound as usize, upper_bound as usize)
+        .unwrap();
 
     println!("max used ore: {}", max_under_trillion);
     printwriteln!(writer, "{}", answer).unwrap();
+}
+
+struct BS<'a> {
+    deps: &'a Deps,
+    max_under_trillion: u64,
+}
+
+impl BinarySearchable<usize, u64> for BS<'_> {
+    fn get_val(&mut self, index: &usize) -> u64 {
+        get_req_ore(self.deps, *index as u64, false /* verbose */)
+    }
+
+    fn found_result(
+        &mut self,
+        req_ore: &u64,
+        lower_bound: &usize,
+        mid_point: &usize,
+        _upper_bound: &usize,
+    ) -> bool {
+        if *req_ore > self.max_under_trillion && *req_ore <= TRILLION {
+            self.max_under_trillion = *req_ore;
+        }
+
+        *req_ore == TRILLION || (*req_ore < TRILLION && *lower_bound == *mid_point)
+    }
+
+    fn set_next_bounds(
+        &mut self,
+        req_ore: &u64,
+        lower_bound: &mut usize,
+        mid_point: &usize,
+        upper_bound: &mut usize,
+    ) -> bool {
+        if *req_ore < TRILLION {
+            *lower_bound = *mid_point;
+        } else if *req_ore > TRILLION {
+            *upper_bound = *mid_point;
+        } else {
+            panic!("should be impossible");
+        }
+
+        false
+    }
 }

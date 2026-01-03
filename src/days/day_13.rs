@@ -77,10 +77,10 @@ fn part1<W: Write>(writer: &mut BufWriter<W>, memory: Vec<i64>) {
     c.run(VERBOSE);
 
     let (mut min_x, mut min_y, mut max_x, mut max_y) = (
-        OptionMinMax(None),
-        OptionMinMax(None),
-        OptionMinMax(None),
-        OptionMinMax(None),
+        OptionMinMax::NONE,
+        OptionMinMax::NONE,
+        OptionMinMax::NONE,
+        OptionMinMax::NONE,
     );
     loop {
         match c.get_state() {
@@ -113,10 +113,10 @@ fn part1<W: Write>(writer: &mut BufWriter<W>, memory: Vec<i64>) {
     // min_x: 0, min_y: 0, max_x: 39, max_y: 24
     println!(
         "min_x: {}, min_y: {}, max_x: {}, max_y: {}",
-        min_x.0.expect(""),
-        min_y.0.expect(""),
-        max_x.0.expect(""),
-        max_y.0.expect("")
+        min_x.unwrap(),
+        min_y.unwrap(),
+        max_x.unwrap(),
+        max_y.unwrap()
     );
 
     let num_blocks = screen

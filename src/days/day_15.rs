@@ -147,10 +147,10 @@ fn depth_first_flood_fill(memory: Vec<i64>) -> (Map, (i64, i64), i64, i64, i64, 
     m.m.insert(START, Tile::Empty);
 
     let (mut min_x, mut min_y, mut max_x, mut max_y) = (
-        OptionMinMax(None),
-        OptionMinMax(None),
-        OptionMinMax(None),
-        OptionMinMax(None),
+        OptionMinMax::NONE,
+        OptionMinMax::NONE,
+        OptionMinMax::NONE,
+        OptionMinMax::NONE,
     );
     let mut stack: Vec<StackFrame> = Vec::new();
     let mut frame = StackFrame::new();
@@ -219,11 +219,11 @@ fn depth_first_flood_fill(memory: Vec<i64>) -> (Map, (i64, i64), i64, i64, i64, 
 
     (
         m,
-        oxygen.expect(""),
-        min_x.0.expect(""),
-        max_x.0.expect(""),
-        min_y.0.expect(""),
-        max_y.0.expect(""),
+        oxygen.unwrap(),
+        min_x.unwrap(),
+        max_x.unwrap(),
+        min_y.unwrap(),
+        max_y.unwrap(),
     )
 }
 
